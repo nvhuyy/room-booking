@@ -128,3 +128,59 @@ git push origin homework/<your-name>
 ```
 
 Open a Pull Request titled `[Homework] <Full name>` and list the creative challenges you chose.
+
+## Homework implementation
+
+Run `npm run dev` and enter one command per line.  Booking uses the following
+format so a customer name is a single word:
+
+```text
+book <customer> <room> <date> <start> <hours>
+```
+
+For example, `book Trang Ocean 2026-11-12 16 2`. New bookings start as
+`PENDING`; use `confirm <id>` or `cancel <id>` afterwards. `help` displays all
+commands. Every invalid command is handled at the prompt, so the program keeps
+running. Bookings that overlap an active booking are rejected before writing
+the file.
+
+### Creative challenges completed
+
+1. **Peak-hour pricing.** Each booked hour from 17:00 through 19:59 costs 50%
+   more. The same `cost` function is used in the list report, revenue command,
+   and exports so prices cannot disagree.
+2. **Nearest free slot.** `suggest <room> <date> <start> <hours>` searches all
+   valid starts in the day, ordered by distance from the requested start. A
+   rejected `book` command also shows that suggestion when one exists.
+3. **Daily room usage stats.** `usage <date>` reports the number of active
+   bookings and total booked hours for every room. Cancelled bookings do not
+   count.
+4. **Exporting schedules.** `export markdown <date> [file]` and
+   `export csv <date> [file]` write the day schedule with calculated prices.
+   The default files are `schedule-<date>.md` and `schedule-<date>.csv`.
+
+In addition, JSON is validated while loading. The parser receives `unknown`,
+then runtime type guards check each room and booking before it reaches the
+typed app. Thus a value such as `"start": "9"` is rejected with a useful
+message instead of producing an invalid time.
+
+### Think
+
+1. TypeScript checks source code while compiling, but `bookings.json` is data
+   received at runtime. A type assertion after `JSON.parse` only tells the
+   compiler to trust the value; it does not convert or validate it. A string
+   start leads to JavaScript's `+` string concatenation (`"9" + 2` becomes
+   `"92"`). The runtime guards in `storage.ts` address this at the file
+   boundary; command input is also parsed and range-checked.
+2. The slow point is comparing a new booking against every relevant existing
+   booking (and, in the report, searching earlier bookings for clashes). At one
+   million entries this is linear work per check, or potentially quadratic when
+   reporting all conflicts. V8 runs those JavaScript array callbacks on its
+   single main thread, so the event loop cannot process another command until
+   the calculation finishes. A production version would index bookings by room
+   and date and keep each day's intervals sorted.
+3. Both processes can read the same old file, both see the slot as free, and
+   then both write a complete replacement file. The last write wins, so one
+   booking can disappear (or an implementation might preserve both conflicting
+   entries). Prevent it with a database transaction/unique exclusion rule, or
+   at minimum a shared lock plus reload-and-check immediately before saving.
